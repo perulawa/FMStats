@@ -101,12 +101,18 @@ export default function Home() {
     const loadDevData = useCallback(async () => {
         try {
             const response = await fetch('/sample.csv');
+            if (!response.ok) {
+                throw new Error(`Failed to load sample data: ${response.status} ${response.statusText}`);
+            }
             const text = await response.text();
+            if (!text.trim()) {
+                throw new Error('Sample data file is empty');
+            }
             const file = new File([text], 'sample.csv', { type: 'text/csv' });
             await loadData(file);
         } catch (err) {
-            setError('Error loading sample data. Please try again.');
-            console.error(err);
+            console.error('Error loading sample data:', err);
+            setError(err instanceof Error ? err.message : 'Error loading sample data. Please try again.');
         }
     }, [loadData]);
 
@@ -119,7 +125,18 @@ export default function Home() {
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        await loadData(file);
+
+        if (!file.name.endsWith('.csv')) {
+            setError('Please upload a CSV file');
+            return;
+        }
+
+        try {
+            await loadData(file);
+        } catch (err) {
+            console.error('Error processing file:', err);
+            setError(err instanceof Error ? err.message : 'Error processing file. Please make sure it\'s a valid CSV file.');
+        }
     };
 
     // Memoize the duration submit handler

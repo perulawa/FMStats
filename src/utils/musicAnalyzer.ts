@@ -42,68 +42,68 @@ export class MusicAnalyzer {
     }
 
     async parseCSV(file: File): Promise<void> {
-        return new Promise((resolve, reject) => {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: (header: string) => header.trim(),
-                transform: (value: string) => value.trim(),
-                complete: (results) => {
-                    try {
-                        if (results.errors.length > 0) {
-                            console.error('CSV Parse Errors:', results.errors);
-                            reject(new Error('Error parsing CSV file: ' + results.errors[0].message));
-                            return;
-                        }
+        try {
+            const text = await file.text();
+            if (!text.trim()) {
+                throw new Error('CSV file is empty');
+            }
 
-                        if (!Array.isArray(results.data) || results.data.length === 0) {
-                            reject(new Error('No valid data found in CSV file'));
-                            return;
-                        }
+            const lines = text.split('\n');
+            if (lines.length < 2) {
+                throw new Error('CSV file must contain at least a header row and one data row');
+            }
 
-                        // Store original data, ensuring all fields exist
-                        this.originalData = (results.data as any[]).map(row => ({
-                            uts: row.uts || '',
-                            utc_time: row.utc_time || '',
-                            artist: row.artist || '',
-                            artist_mbid: row.artist_mbid || '',
-                            album: row.album || '',
-                            album_mbid: row.album_mbid || '',
-                            track: row.track || '',
-                            track_mbid: row.track_mbid || ''
-                        }));
-                        
-                        // Transform the raw data into our Track format
-                        this.tracks = this.originalData.map(row => {
-                            const trackKey = createTrackKey(row.artist, row.album, row.track);
-                            const savedMetadata = this.metadata[trackKey] || {
-                                duration: '',
-                                genre: '',
-                                feat: '',
-                                prod: '',
-                                label: ''
-                            };
+            const headers = lines[0].split(',').map(h => h.trim());
+            const requiredHeaders = ['Artist', 'Album', 'Track', 'Count'];
+            const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
-                            return {
-                                utc_time: row.utc_time,
-                                artist: row.artist,
-                                album: row.album,
-                                track: row.track,
-                                ...savedMetadata
-                            };
-                        });
-                        resolve();
-                    } catch (error) {
-                        console.error('Error processing CSV data:', error);
-                        reject(error);
-                    }
-                },
-                error: (error) => {
-                    console.error('Papa Parse Error:', error);
-                    reject(error);
+            if (missingHeaders.length > 0) {
+                throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
+            }
+
+            this.tracks = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const values = line.split(',').map(v => v.trim());
+                if (values.length !== headers.length) {
+                    throw new Error(`Invalid data in row ${i + 1}: expected ${headers.length} columns, got ${values.length}`);
                 }
-            });
-        });
+
+                const artist = values[headers.indexOf('Artist')] || '';
+                const album = values[headers.indexOf('Album')] || '';
+                const track = values[headers.indexOf('Track')] || '';
+                const count = parseInt(values[headers.indexOf('Count')] || '0');
+                const duration = values[headers.indexOf('Duration')] || undefined;
+                const genre = values[headers.indexOf('Genre')] || undefined;
+                const utc_time = values[headers.indexOf('UTC Time')] || undefined;
+
+                if (isNaN(count)) {
+                    throw new Error(`Invalid count value in row ${i + 1}: ${values[headers.indexOf('Count')]}`);
+                }
+
+                this.tracks.push({
+                    artist,
+                    album,
+                    track,
+                    count,
+                    duration,
+                    genre,
+                    utc_time
+                });
+            }
+
+            if (this.tracks.length === 0) {
+                throw new Error('No valid tracks found in CSV file');
+            }
+
+            // Load existing metadata
+            this.loadMetadata();
+        } catch (error) {
+            console.error('Error parsing CSV:', error);
+            throw error instanceof Error ? error : new Error('Failed to parse CSV file');
+        }
     }
 
     async saveToCSV(): Promise<File> {

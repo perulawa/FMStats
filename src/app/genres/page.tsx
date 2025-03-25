@@ -98,12 +98,18 @@ export default function GenresPage() {
         const loadDevData = async () => {
             try {
                 const response = await fetch('/sample.csv');
+                if (!response.ok) {
+                    throw new Error(`Failed to load sample data: ${response.status} ${response.statusText}`);
+                }
                 const text = await response.text();
+                if (!text.trim()) {
+                    throw new Error('Sample data file is empty');
+                }
                 const file = new File([text], 'sample.csv', { type: 'text/csv' });
                 await loadData(file);
             } catch (err) {
-                setError('Error loading data');
-                console.error(err);
+                console.error('Error loading sample data:', err);
+                setError(err instanceof Error ? err.message : 'Error loading sample data. Please try again.');
             }
         };
 

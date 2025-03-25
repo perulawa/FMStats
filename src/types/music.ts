@@ -1,13 +1,14 @@
 export interface Track {
-    utc_time: string;
     artist: string;
     album: string;
     track: string;
-    duration: string;
-    genre: string;
-    feat: string;
-    prod: string;
-    label: string;
+    count: number;
+    duration?: string;
+    genre?: string;
+    utc_time?: string;
+    feat?: string;
+    prod?: string;
+    label?: string;
 }
 
 export interface TopItem {
